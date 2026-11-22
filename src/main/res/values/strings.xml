@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="module_name">全景息屏锁定</string>
+    <string name="module_desc">强制 full_screen_aod 恒为 1，阻止系统场景策略把全景息屏降级成局部息屏。API 102 模块。</string>
+</resources>
