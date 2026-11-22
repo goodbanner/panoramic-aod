@@ -1,4 +1,4 @@
-name: Build AOD Module
+name: Build AOD Module (Release)
 
 on:
   push:
@@ -18,9 +18,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # ubuntu-latest runners ship with Android SDK preinstalled.
-      # The setup-android action is intentionally omitted: its legacy
-      # `sdkmanager tools` step fails on current SDK repositories.
+      # ubuntu-latest ships with Android SDK preinstalled. setup-android@v3
+      # is omitted: its legacy `sdkmanager tools` step fails on current repos.
       - name: Accept SDK licenses and install platform/build-tools
         shell: bash
         run: |
@@ -33,20 +32,21 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Assemble debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Assemble RELEASE APK
+        run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: Locate APK
+      - name: Locate release APK
         id: apk
         shell: bash
         run: |
-          APK=$(find . -type f -name '*.apk' | head -n1)
+          APK=$(find . -type f -path '*release*.apk' | grep -v debug | head -n1)
           echo "path=$APK" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "$APK")" >> "$GITHUB_OUTPUT"
           ls -l "$APK"
 
-      - name: Upload APK artifact
+      - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: panoramic-aod-apk
+          name: panoramic-aod-release
           path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
