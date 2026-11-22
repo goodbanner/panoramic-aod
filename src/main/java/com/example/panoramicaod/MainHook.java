@@ -22,8 +22,9 @@ import io.github.libxposed.api.XposedModuleInterface;
  *        0 = off / partial (local)
  *        1 = full-day AOD (display)
  *        2 = inspiration / panoramic AOD  <-- what we want
- *    We force those getters to return 2 and neutralize the setters so the
- *    system scene policy cannot downgrade to 0.
+ *    We force those getters to report 2 (without calling the originals, to
+ *    avoid corrupting their Context argument). Setters are left untouched so
+ *    the AOD settings UI keeps working; every reader still sees state 2.
  *
  *    OnextBox hooks SettingsUtils.getKeyAodAllDaySupportSettings() in the same
  *    process; we hook different methods, so there is no conflict.
@@ -134,52 +135,31 @@ public class MainHook extends XposedModule {
             return;
         }
 
-        // getAodStateSettings(Context, int) -> int   (and the Context-only overload)
+        // Force the AOD mode getters to REPORT panoramic (state 2).
+        // Crucially we return the value directly and NEVER call chain.proceed():
+        // proceed() with a rewritten arg array would corrupt the Context parameter
+        // of the Context-only overloads and crash com.oplus.aod.
         hookIntGetter(utils, "getAodStateSettings", android.content.Context.class, int.class);
         hookIntGetter(utils, "getAodStateSettings", android.content.Context.class);
         hookIntGetter(utils, "getAodStateLocalSettings", android.content.Context.class);
 
-        // setAodStateSettings(Context, int) / setAodStateLocalSettings(Context, int)
-        hookIntSetter(utils, "setAodStateSettings", android.content.Context.class, int.class);
-        hookIntSetter(utils, "setAodStateLocalSettings", android.content.Context.class, int.class);
+        // We intentionally do NOT hook the setters: intercepting the mode write
+        // made the AOD settings toggles appear unresponsive. Letting writes go
+        // through is fine because every reader is forced to see state 2 anyway.
 
         aodHooked = true;
-        log(Log.INFO, TAG, "com.oplus.aod hooks installed (state -> " + AOD_STATE_PANORAMIC + ")");
+        log(Log.INFO, TAG, "com.oplus.aod hooks installed (report state -> " + AOD_STATE_PANORAMIC + ")");
     }
 
-    /** Force an int getter to return AOD_STATE_PANORAMIC. */
+    /** Force an int getter to return AOD_STATE_PANORAMIC without calling the original. */
     private void hookIntGetter(Class<?> owner, String name, Class<?>... params) {
         try {
             java.lang.reflect.Method m = owner.getDeclaredMethod(name, params);
-            hook(m).setPriority(PRIORITY_HIGHEST).intercept(chain -> chain.proceed(
-                    new Object[]{AOD_STATE_PANORAMIC}));
+            hook(m).setPriority(PRIORITY_HIGHEST).intercept(chain -> AOD_STATE_PANORAMIC);
         } catch (NoSuchMethodException e) {
             // overload may not exist on this ROM; ignore quietly
         } catch (Throwable t) {
             log(Log.ERROR, TAG, "getter hook failed: " + name, t);
-        }
-    }
-
-    /**
-     * Neutralize an int setter: replace its int argument with AOD_STATE_PANORAMIC
-     * so any write of 0/1 becomes the panoramic code.
-     */
-    private void hookIntSetter(Class<?> owner, String name, Class<?>... params) {
-        try {
-            java.lang.reflect.Method m = owner.getDeclaredMethod(name, params);
-            hook(m).setPriority(PRIORITY_HIGHEST).intercept(chain -> {
-                Object[] args = chain.getArgs().toArray();
-                for (int i = 0; i < args.length; i++) {
-                    if (args[i] instanceof Integer) {
-                        args[i] = AOD_STATE_PANORAMIC;
-                    }
-                }
-                return chain.proceed(args);
-            });
-        } catch (NoSuchMethodException e) {
-            // overload may not exist on this ROM; ignore quietly
-        } catch (Throwable t) {
-            log(Log.ERROR, TAG, "setter hook failed: " + name, t);
         }
     }
 
