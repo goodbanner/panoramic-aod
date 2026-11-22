@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.panoramicaod"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1-release"
+        versionCode = 3
+        versionName = "1.2-release"
     }
 
     compileOptions {
