@@ -18,23 +18,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK platform 35 & build-tools
+      # ubuntu-latest runners ship with Android SDK preinstalled.
+      # The setup-android action is intentionally omitted: its legacy
+      # `sdkmanager tools` step fails on current SDK repositories.
+      - name: Accept SDK licenses and install platform/build-tools
+        shell: bash
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDK="$ANDROID_HOME"
+          echo "ANDROID_HOME=$SDK"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Generate Gradle wrapper
-        uses: gradle/actions/setup-gradle@v3
+      - name: Build with Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Build debug APK
+      - name: Assemble debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Locate APK
         id: apk
+        shell: bash
         run: |
           APK=$(find . -type f -name '*.apk' | head -n1)
           echo "path=$APK" >> "$GITHUB_OUTPUT"
